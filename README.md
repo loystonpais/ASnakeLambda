@@ -22,3 +22,14 @@ python -m ASnake --help
 python -m ASnake --compile --run test.asnake
 python -m ASnake -e "loop 12 do 'the code goes inside the strings dummy, don\'t you know bash?'"
 ```
+
+# Lambda Usage
+
+```py
+import requests as r
+
+url = "https://<XXX>.amazonaws.com/default/Asnake"
+result = r.post(url, json={"code": "'Hello World from Asnake'"}).json()
+
+print(result)
+```
