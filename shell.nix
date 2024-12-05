@@ -7,6 +7,7 @@ pkgs.mkShell {
     python312Packages.autopep8
     python312Packages.pip
     python312Packages.build
+    python312Packages.requests
     zip
   ];
 }
