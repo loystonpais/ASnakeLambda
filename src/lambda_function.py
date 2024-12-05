@@ -3,13 +3,10 @@ import subprocess
 import os
 from ASnake import build
 
-asnake_source = '''
-print("Hello World from ASnake")
-'''
 
 def lambda_handler(event, context):
-    # Generate Python code from ASnake source
-    source = build(asnake_source)
+    # Get code from event
+    source = event["code"]
 
     # Write the generated code to a temporary file
     temp_file = "/tmp/generated_code.py"
