@@ -3,8 +3,14 @@ import subprocess
 import os
 from ASnake import build
 
-
 def lambda_handler(event, context):
+    # Check if "code" key is in the event
+    if "code" not in event:
+        return {
+            'statusCode': 400,
+            'body': json.dumps("Error: 'code' key not found in event.")
+        }
+
     # Get code from event
     source = event["code"]
 
