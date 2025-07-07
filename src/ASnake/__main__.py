@@ -5,6 +5,7 @@ except ImportError:
 
 # dependencies
 from autopep8 import fix_code
+from ruff_api import format_string, errors
 
 # standard library
 from subprocess import check_output, CalledProcessError, STDOUT
@@ -14,6 +15,9 @@ from re import sub as REsub
 from re import findall as REfindall
 from platform import python_version, python_version_tuple, python_implementation
 
+ignoreCodes=('E114', 'E115', 'E116', 'E261', 'E262', 'E265', 'E266', 'E301', 'E302', 'E305', 'E4', 'E701',
+                       'E702', 'E704', 'E722', 'E731', 'W3', 'W5', 'W6')
+
 def fetchErrorLine(error_message, theCode):
     try:
         theLine = int(REfindall(r'Traceback \(most recent call last\):\n  File "(?:.+?)", line (\d+)', error_message)[-1])
@@ -21,17 +25,31 @@ def fetchErrorLine(error_message, theCode):
     except IndexError:
         return False
 
+def formatCode(code, version, compileTo='Python'):
+    for _ in range(3):
+        code = REsub(
+            r"""\n\n+?(?=[^'"]+?|#.*?\n+?|(?:(?:[^"'\\]*?(?:\\.|'(?:[^'\\]*\\.)*?[^'\\]*?'|"(?:[^"\\]*\\.)*?[^"\\]*?"))*?[^"'\\]*?$))""",
+            '\n', code)
+    cpv = python_version_tuple()
+    cpv = cpv[0] + '.' + cpv[1]
+    if (float(version) < 3.12 <= float(cpv)) or compileTo == 'Cython':
+        # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
+        code = fix_code(code, options={'ignore': ignoreCodes + ('E501',)})
+    else:
+        try:
+            code = format_string('tmpFormat', code)
+        except errors.ParseError:
+            # fall back to autopep8
+            code = fix_code(code, options={'ignore': ignoreCodes})
+    return code
+
 def execPy(code, fancy=True, pep=True, run=True, execTime=False, headless=False, runtime='Python', windows=False, runCommand=None, version=latestPythonVersionSupported, sourceCode=''):
     if pep:
         if execTime:
-            print('# autopep8 time: ', end='', flush=True)
+            print('# format time: ', end='', flush=True)
             s = monotonic()
-        ignoreCodes=['E114', 'E115', 'E116', 'E261', 'E262', 'E265', 'E266', 'E301', 'E302', 'E305', 'E4', 'E701',
-                       'E702', 'E704', 'E722', 'E731', 'W3', 'W5', 'W6']
-        cpv = python_version_tuple() ; cpv = cpv[0] + '.' + cpv[1]
-        if float(version) < 3.12 <= float(cpv): ignoreCodes.append('E501')
-        # ^ breaks behaviour on fstrings when targeting a lower version and compiler's version is higher
-        code = fix_code(code, options={'ignore': ignoreCodes}) ; del ignoreCodes
+        code = formatCode(code, version, runtime)
+
         if execTime:
             print(round(monotonic() - s, 4))
     if fancy:
@@ -272,11 +290,6 @@ if __name__ == '__main__':
         s=round(monotonic()-s,4)
         if debug: print('# build time:', s)
         else: print(s)
-    if pep or headless:
-        print('# newline cleanup time: ', end='', flush=True)
-        s=monotonic()
-        code=REsub(r"""\n\n+(?=(?:[^"'\\]*(?:\\.|'(?:[^'\\]*\\.)*[^'\\]*'|"(?:[^"\\]*\\.)*[^"\\]*"))*[^"'\\]*$)""",'\n',code)
-        print(round(monotonic()-s,4))
     if compileAStoPy:
         if args.path:
             if WINDOWS:
@@ -294,10 +307,10 @@ if __name__ == '__main__':
         ASFile='.'.join(ASFile.rsplit('.')[:-1])
         ASFile = "".join(x for x in ASFile.split('/')[-1] if x.isalnum())
         fileName=f'{ASFile}.py{"x" if compileTo=="Cython" else ""}'
-        if pep:
-            print('# autopep8 time: ', end='', flush=True)
+        if pep or headless:
+            print('# format time: ', end='', flush=True)
             s = monotonic()
-            code=fix_code(code,options={'ignore': ['E265']})
+            code = formatCode(code, pythonVersion, compileTo)
             print(round(monotonic() - s, 4))
         if filePath=='/': filePath=''
         if ASFileExt == 'py' and path.isfile(filePath+fileName):
@@ -405,7 +418,7 @@ setup(ext_modules = cythonize('{filePath + fileName}',annotate={True if args.ann
 
         if compileTo == 'Cython':
             ASFile='.'.join(ASFile.rsplit('.')[:-1])
-            execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion)
+            execPy(code,run=False,execTime=False,pep=pep,headless=headless,fancy=fancy,windows=WINDOWS,runCommand=args.run_command,version=pythonVersion,runtime=compileTo)
             if '/' in ASFile:
                 tmpASFile=ASFile.split('/')[-1].replace("'","\\'")
                 ASFile=ASFile.replace("'","").replace("_",'')
